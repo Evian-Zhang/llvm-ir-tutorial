@@ -4,8 +4,8 @@
 
 ## 目录
 
-* [LLVM IR入门指南(1)——LLVM架构简介](./LLVM IR入门指南(1)——LLVM架构简介.md)
-* [LLVM IR入门指南(2)——Hello world](./LLVM IR入门指南(2)——Hello world.md)
+* [LLVM IR入门指南(1)——LLVM架构简介](./LLVM%20IR入门指南(1)——LLVM架构简介.md)
+* [LLVM IR入门指南(2)——Hello world](./LLVM%20IR入门指南(2)——Hello%20world.md)
 
 ## 在哪可以看到我的文章
 
