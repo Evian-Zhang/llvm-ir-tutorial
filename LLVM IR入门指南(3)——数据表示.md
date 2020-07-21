@@ -276,7 +276,7 @@ retq
 ```pseudocode
 function max(register a, register b) {
 	register c = register b
-	if (register a >= register b) {
+	if (register a >= register c) {
 		register c = register a
 	}
 	return register c
@@ -286,3 +286,141 @@ function max(register a, register b) {
 很简单的事，并且把所有的操作都从对内存的操作变成了对寄存器的操作。
 
 因此，由这个简单的例子我们可以看出来，如果寄存器的数量足够，并且代码中没有需要操作内存地址的时候，寄存器是足够胜任的，并且更加高效的。
+
+### 寄存器
+
+正因为如此，LLVM IR引入了虚拟寄存器的概念。在LLVM IR中，一个函数的局部变量可以是寄存器或者栈上的变量。对于寄存器而言，我们只需要像普通的赋值语句一样操作，但需要注意名字必须以`%`开头：
+
+```llvm
+%local_variable = add i32 1, 2
+```
+
+此时，`%local_variable`这个变量就代表一个寄存器，它此时的值就是`1`和`2`相加的结果。我们可以写一个简单的程序验证这一点：
+
+```llvm
+; register_test.ll
+target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-apple-macosx10.15.0"
+
+define i32 @main() {
+	%local_variable = add i32 1, 2
+	ret i32 %local_variable
+}
+```
+
+我们在x86_64的macOS系统上查看其编译出的汇编代码，其主函数为：
+
+```assembly
+_main:
+	movl	$2, %eax
+	addl	$1, %eax
+	retq
+```
+
+确实这个局部变量`%local_variable`变成了寄存器`eax`。
+
+关于寄存器，我们还需了解一点。在不同的ABI下，会有一些called-saved register和calling-saved register。简单来说，就是在函数内部，某些寄存器的值不能改变。或者说，在函数返回时，某些寄存器的值要和进入函数前相同。比如，在System V的ABI下，`rbp`, `rbx`, `r12`, `r13`, `r14`, `r15`都需要满足这一条件。由于LLVM IR是面向多平台的，所以我们需要一份代码适用于多种ABI。因此，LLVM IR内部自动帮我们做了这些事。如果我们把所有没有被保留的寄存器都用光了，那么LLVM IR会帮我们把这些被保留的寄存器放在栈上，然后继续使用这些被保留寄存器。当函数退出时，会帮我们自动从栈上获取到相应的值放回寄存器内。
+
+那么，如果所有通用寄存器都用光了，该怎么办？LLVM IR会帮我们把剩余的值放在栈上，但是对我们用户而言，实际上都是虚拟寄存器，用户是感觉不到差别的。
+
+因此，我们可以粗略地理解LLVM IR对寄存器的使用：
+
+* 当所需寄存器数量较少时，直接使用called-saved register，即不需要保留的寄存器
+* 当called-saved register不够时，将calling-saved register原本的值压栈，然后使用calling-saved register
+* 当寄存器用光以后，就把多的虚拟寄存器的值压栈
+
+我们可以写一个简单的程序验证。对于x86_64架构下，我们只需要使用15个虚拟寄存器就可以验证这件事。鉴于篇幅，我就不把代码放在文章中了，如果想看详细代码可以去我的GitHub仓库中查看`many_registers_test.ll`。我们将其编译成汇编语言之后，可以看到在函数开头就有
+
+```assembly
+pushq	%r15
+pushq	%r14
+pushq	%r13
+pushq	%r12
+pushq	%rbx
+```
+
+也就是把那些需要保留的寄存器压栈。然后随着寄存器用光，第15个虚拟寄存器就会使用栈：
+
+```assembly
+movl	%ecx, -4(%rsp)
+addl	$1, %ecx
+```
+
+### 栈
+
+我们之前说过，当不需要操作地址并且寄存器数量足够时，我们可以直接使用寄存器。而LLVM IR的策略保证了我们可以使用无数的虚拟寄存器。那么，在需要操作地址以及需要可变变量（之后会提到为什么）时，我们就需要使用栈。
+
+LLVM IR对栈的使用十分简单，直接使用`alloca`指令即可。如：
+
+```llvm
+%local_variable = alloca i32
+```
+
+就可以声明一个在栈上的变量了。关于栈上变量的操作，我会在下面提到，目前我们对栈上变量的了解只需这么多。
+
+## 全局变量和栈上变量皆指针
+
+下面，我们就需要讲怎样操作全局变量和栈上的变量。这两种变量实际上是类似的，LLVM IR把它们都看作指针。也就是说，对于全局变量：
+
+```llvm
+@global_variable = global i32 0
+```
+
+和栈上变量
+
+```llvm
+%local_variable = alloca i32
+```
+
+这两个变量实际上都是`i32*`类型的指针，指向它们所处的内存区域。所以，我们不能这样：
+
+```llvm
+%1 = add i32 1, @global_variable ; wrong!
+```
+
+因为`@global_variable`只是一个指针。
+
+如果要操作这些值，必须使用`load`和`store`这两个命令。如果我们要获取`@global_variable`的值，就需要
+
+```llvm
+%1 = load i32, i32* @global_variable
+```
+
+这个指令的意思是，把一个`i32*`类型的指针`@global_variable`的`i32`类型的值赋给虚拟寄存器`%1`，然后我们就能愉快地
+
+```llvm
+%2 = add i32 1, %1
+```
+
+这样了。
+
+类似地，如果我们要将值存储到全局变量或栈上变量里，会需要`store`命令：
+
+```llvm
+store i32 1, i32* @global_variable
+```
+
+这个代表将`i32`类型的值`1`赋给`i32*`类型的全局变量`@global_variable`所指的内存区域中。
+
+## SSA
+
+LLVM IR是一个严格遵守SSA(Static Single Assignment)策略的语言。SSA的要求很简单：每个变量只被赋值一次。也就是说，你不能
+
+```llvm
+%1 = add i32 1, 2
+%1 = add i32 3, 4
+```
+
+对`%1`同时赋值两次是不被允许的。
+
+那么，我们应该怎样实现可变变量呢？很简单，把可变变量放到全局变量或者栈内变量里，虚拟寄存器只存储不可变的变量。比如说，我想实现上面的功能，把两次运算结果储存到同一个变量内：
+
+```llvm
+%stack_variable = alloca i32
+%1 = add i32 1, 2
+store i32 %1, i32* %stack_variable
+%2 = add i32 3, 4
+store i32 %1, i32* %stack_variable
+```
+
+我们同样遵守了SSA，而且也满足了可变变量的需求。此外，虽然LLVM IR上看上去很复杂，LLVM后端也会帮我们优化到比较简单的形式，不会因为SSA而降低性能。
