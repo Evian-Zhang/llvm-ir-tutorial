@@ -291,7 +291,7 @@ int x;
 switch (x) {
 	case 0:
 		// do something A
-        break;
+	    break;
 	case 1:
 		// do something B
 		break;
