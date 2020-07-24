@@ -8,6 +8,8 @@
 * [LLVM IR入门指南(2)——Hello world](./LLVM%20IR入门指南(2)——Hello%20world.md)
 * [LLVM IR入门指南(3)——数据表示](./LLVM%20IR入门指南(3)——数据表示.md)
 * [LLVM IR入门指南(4)——类型系统](./LLVM%20IR入门指南(4)——类型系统.md)
+* [LLVM IR入门指南(5)——控制语句](./LLVM%20IR入门指南(5)——控制语句.md)
+* [LLVM IR入门指南(6)——函数](./LLVM%20IR入门指南(6)——函数.md)
 
 ## 在哪可以看到我的文章
 
