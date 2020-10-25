@@ -156,7 +156,7 @@ LLVM后端在读取了IR之后，就会对这个IR进行优化。这在LLVM后�
 我们可以用
 
 ```shell
-opt test.ll -S -O3
+opt test.ll -S --O3
 ```
 
 对相应的代码进行优化，也可以直接用
