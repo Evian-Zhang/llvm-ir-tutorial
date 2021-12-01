@@ -166,9 +166,10 @@ struct MyStruct {
 };
 
 struct MyStruct my_structs[4];
+struct MyStruct *my_structs_ptr = my_structs;
 ```
 
-我们有一个长度为4的`MyStruct`类型的数组`my_structs`，我们需要的是`my_structs[2].y`这个数。
+我们有一个**指向**长度为4的`MyStruct`类型的数组`my_structs`第一个元素的**指针**`my_structs_ptr`，我们需要的是`my_structs_ptr[2].y`这个数。
 
 我们先直接看结论，用LLVM IR来表示为
 
@@ -178,14 +179,31 @@ struct MyStruct my_structs[4];
 	i32
 }
 %my_structs = alloca [4 x %MyStruct]
+%my_structs_ptr = getelementptr [4 x %MyStruct], [4 x %MyStruct]* @my_structs, i32 0, i32 0
 
-%1 = getelementptr [4 x %MyStruct], [4 x %MyStruct]* %my_structs, i64 2, i32 1 ; %1 is pointer to my_structs[2].y
-%2 = load i32, i32* %1 ; %2 is value of my_structs[2].y
+%1 = getelementptr %MyStruct, %MyStruct* %my_structs_ptr, i64 2, i32 1 ; %1 is pointer to my_structs_ptr[2].y
+%2 = load i32, i32* %1 ; %2 is value of my_structs_ptr[2].y
 ```
 
-核心就在于`getelementptr`这个指令。这个指令的前两个参数很显然，第一个是这个聚合类型的类型，第二个则是这个聚合类型对象的指针，也就是我们的`my_structs`。第三个参数，则是指明在数组中的第几个元素，第四个，则是指明在结构体中的第几个字段（LLVM IR中结构体的字段不是按名称，而是按下标索引来区分）。用人话来说，`%1`就是`my_structs`数组第2个元素的第1个字段的地址。
+上述代码涉及两处`getelementptr`，第一处由`my_structs`变为`my_structs_ptr`，第二处由`my_structs_ptr`得到`my_structs_ptr[2].y`。
 
-这看上去似乎很好理解，但是，下面的例子就似乎有些特殊了：
+在C语言中，数组可以隐式转换为指针，但在LLVM中，似乎并不会那么显然。在
+
+```llvm
+%my_structs_ptr = getelementptr [4 x %MyStruct], [4 x %MyStruct]* @my_structs, i64 0, i64 0
+```
+
+这条语句中，我们可以看到，`@my_structs`是指向内存中长度为4的`MyStruct`类型的数组的**指针**，通过第一层的`i64 0`，我们可以得到这个指针指向的第一个元素，也就是说我们这个指针的偏移值为0（如果指针偏移值为1，则在内存里将偏移一整个`my_structs`数组的大小），第二个元素则是说明我们的最终结果指向的是这个数组的首元素。也就是说，在LLVM IR中，我们会默认把所有指针看作是由数组转化来的，因此我们要对指针解引用时，总要先声明我们的顶层偏移值为0。
+
+在第二处`getelementptr`这个指令，其前两个参数很显然，第一个是这个聚合类型的类型，第二个则是这个聚合类型对象的指针，也就是我们的`my_structs_ptr`。第三个参数，则是指明在数组中的第几个元素，第四个，则是指明在结构体中的第几个字段（LLVM IR中结构体的字段不是按名称，而是按下标索引来区分）。用人话来说，`%1`就是`my_structs`数组第2个元素的第1个字段的地址。
+
+因此，如果我们直接想`my_structs[2].y`，我们的LLVM IR就是
+
+```llvm
+%1 = getelementptr [4 x %MyStruct], [4 x %MyStruct]* %my_structs, i64 0, i64 2, i32 1 ; %1 is pointer to my_structs[2].y
+```
+
+为了更好地理解上述例子中第一处`getelementptr`的用法，我们思考下面的例子：
 
 ```llvm
 %MyStruct = type {
@@ -197,7 +215,7 @@ struct MyStruct my_structs[4];
 %1 = getelementptr %MyStruct, %MyStruct* %my_struct, i64 0, i32 1 ; %1 is pointer to my_struct.y
 ```
 
-没想到吧，如果想根据结构体的指针获取结构体的字段，`getelementptr`的第三个参数居然还需要一个`i64 0`。这是做什么用的呢？这里就是指数组的第一个元素，想象一下我们有一个C语言代码：
+如果想根据结构体的指针获取结构体的字段，`getelementptr`的第三个参数居然还需要一个`i64 0`。这是做什么用的呢？这里就是指数组的第一个元素，想象一下我们有一个C语言代码：
 
 ```c
 struct MyStruct {
