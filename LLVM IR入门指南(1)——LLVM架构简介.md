@@ -191,6 +191,14 @@ attributes #0 = { norecurse nounwind readnone ssp uwtable "correctly-rounded-div
 
 我们观察`@main`函数，可以发现其函数体确实减少了不少。
 
+但实际上，上述的这个优化只能通过`clang -S -emit-llvm -O3 test.c`生成；如果对我们之前生成的`test.ll`使用`opt test.ll -S --O3`，是不会有变化的。这是因为在Clang的[D28404](https://reviews.llvm.org/D28404)这个修改中，默认给所有`O0`优化级别的函数增加`optnone`属性，会导致函数不会被优化。如果要使`opt test.ll -S --O3`正确运行，我们生成`test.ll`时需要使用
+
+```shell
+clang -cc1 -disable-O0-optnone -S -emit-llvm test.c
+```
+
+来生成。
+
 ## LLVM后端生成汇编代码
 
 LLVM后端帮我们做的最后一步，就是由LLVM IR生成汇编代码，这是由`llc`这个组件完成的。
