@@ -1,4 +1,6 @@
-# LLVM是什么
+# LLVM架构简介
+
+## LLVM是什么
 
 随着计算机技术的不断发展以及各种领域需求的增多，近几年来，许多编程语言如雨后春笋般出现，大多为了解决某一些特定领域的需求，比如说为JavaScript增加静态类型检查的TypeScript，为解决服务器端高并发的Golang，为解决内存安全和线程安全的Rust。随着编程语言的增多，编程语言的开发者往往都会遇到一些相似的问题：
 
@@ -32,7 +34,7 @@ LLVM的优点正好对应我们之前讲的三个问题：
 
 因为LLVM的优越性，除了LLVM自己研发的C编译器Clang，许多新的工程都选择了使用LLVM，我们可以在[其官网](http://llvm.org/ProjectsWithLLVM)看到使用LLVM的项目的列表，其中，最著名的就是Rust、Swift等语言了。
 
-# LLVM架构
+## LLVM架构
 
 要解释使用LLVM后端的编译器整体架构，我们就拿最著名的C语言编译器Clang为例。
 
@@ -52,7 +54,7 @@ clang test.c -o test
 
 究竟经历了哪几个步骤呢？
 
-## 前端的语法分析
+### 前端的语法分析
 
 首先，Clang的前端编译器会将这个C语言的代码进行预处理、语法分析、语义分析，也就是我们常说的parse the source code。这里不同语言会有不同的做法。总之，我们是将「源代码」这一字符串转化为内存中有意义的数据，表示我们这个代码究竟想表达什么。
 
@@ -99,7 +101,7 @@ TranslationUnitDecl 0x7fc02681ea08 <<invalid sloc>> <invalid sloc>
 
 因此，总结而言，我们基于LLVM的编译器的第一步，就是将源代码转化为内存中的抽象语法树AST。
 
-## 前端生成中间代码
+### 前端生成中间代码
 
 第二个步骤，就是根据内存中的抽象语法树AST生成LLVM IR中间代码（有的比较新的编译器还会先将AST转化为MLIR再转化为IR）。
 
@@ -149,7 +151,7 @@ define i32 @main() #0 {
 
 这是我们AST转化为LLVM IR中最核心的部分，可以隐约感受到这个代码所表达的意思。
 
-## LLVM后端优化IR
+### LLVM后端优化IR
 
 LLVM后端在读取了IR之后，就会对这个IR进行优化。这在LLVM后端中是由`opt`这个组件完成的，它会根据我们输入的LLVM IR和相应的优化等级，进行相应的优化，并输出对应的LLVM IR。
 
@@ -199,7 +201,7 @@ clang -cc1 -disable-O0-optnone -S -emit-llvm test.c
 
 来生成。
 
-## LLVM后端生成汇编代码
+### LLVM后端生成汇编代码
 
 LLVM后端帮我们做的最后一步，就是由LLVM IR生成汇编代码，这是由`llc`这个组件完成的。
 
@@ -238,7 +240,7 @@ _main:                                  ## @main
 
 有了汇编代码之后，我们就需要调用操作系统自带的汇编器、链接器，最终生成可执行程序。
 
-# LLVM IR
+## LLVM IR
 
 根据我们上面讲的，一个基于LLVM后端的编译器的整体过程是
 
@@ -286,7 +288,7 @@ llvm-dis test.bc
 
 我这个系列，将主要介绍的是可读形式的LLVM IR的语法。
 
-# LLVM的下载与安装
+## LLVM的下载与安装
 
 macOS的Xcode会自带`clang`、`clang++`、`swiftc`等基于LLVM的编译器，但并不会带全部的LLVM的套件，如`llc`, `opt`等。类似的，Windows的Visual Studio同样也可以下载Clang编译器，但依然没有带全部的套件。而Linux下则并没有自带编译器或套件。
 
@@ -305,9 +307,3 @@ apt-get install llvm
 ```
 
 进行下载。使用系统包管理器下载的好处在于，我们可以使用国内的镜像，能够更快地实现下载。
-
-# 在哪可以看到我的文章
-
-我的LLVM IR入门指南系列可以在[我的个人博客](https://evian-zhang.top/writings/series/LLVM%20IR入门指南)、GitHub：[Evian-Zhang/llvm-ir-tutorial](https://github.com/Evian-Zhang/llvm-ir-tutorial)、[知乎](https://zhuanlan.zhihu.com/c_1267851596689457152)、[CSDN](https://blog.csdn.net/evianzhang/category_10210126.html)中查看，本教程中涉及的大部分代码也都在同一GitHub仓库中。
-
-本人水平有限，写此文章仅希望与大家分享学习经验，文章中必有缺漏、错误之处，望方家不吝斧正，与大家共同学习，共同进步，谢谢大家！

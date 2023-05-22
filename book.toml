@@ -1,0 +1,10 @@
+[book]
+authors = ["Evian-Zhang"]
+language = "zh-Hans"
+multilingual = false
+src = "src"
+title = "LLVM IR入门指南"
+
+[output.html]
+git-repository-url = "https://github.com/Evian-Zhang/llvm-ir-tutorial"
+edit-url-template = "https://github.com/Evian-Zhang/llvm-ir-tutorial/edit/master/{path}"

@@ -1,6 +1,8 @@
+# 类型系统
+
 我们知道，汇编语言是弱类型的，我们操作汇编语言的时候，实际上考虑的是一些二进制串。但是，LLVM IR却是强类型的，在LLVM IR中所有变量都必须有类型。这是因为，我们在使用高级语言编程的时候，往往都会使用强类型的语言，弱类型的语言无必要性，也不利于维护。因此，使用强类型语言，LLVM IR可以更好地进行优化。
 
-# 基本的数据类型
+## 基本的数据类型
 
 LLVM IR中比较基本的数据类型包括：
 
@@ -25,7 +27,7 @@ store i32 128, i32* %integer_variable
 store i32 -128, i32* %integer_variable
 ```
 
-## 符号
+### 符号
 
 有一点需要注意的是，在LLVM IR中，整型默认是有符号整型，也就是说我们可以直接将`-128`以补码形式赋值给`i32`类型的变量。在LLVM IR中，整型的有无符号是体现在操作指令而非类型上的，比方说，对于两个整型变量的除法，LLVM IR分别提供了`udiv`和`sdiv`指令分别适用于无符号整型除法和有符号整型除法：
 
@@ -53,7 +55,7 @@ define i8 @main() {
 
 总结一下就是，LLVM IR中的整型默认按有符号补码存储，但一个变量究竟是否要被看作有无符号数需要看其参与的指令。
 
-## 转换指令
+### 转换指令
 
 与整型密切相关的就是转换指令，比如说，将`i8`类型的数`-127`转换成`i32`类型的数，将`i32`类型的数`257`转换成`i8`类型的数等。总的来说，LLVM IR中提供三种指令：`trunc` .. `to`指令，`zext` .. `to`指令和`sext` .. `to`指令。
 
@@ -74,7 +76,7 @@ define i8 @main() {
 
 类似地，浮点型的数和整型的数也可以相互转换，使用`fptoui` .. `to`, `fptosi` .. `to`, `uitofp` .. `to`, `sitofp` .. `to`可以分别将浮点数转换为无符号、有符号整型，将无符号、有符号整型转换为浮点数。不过有一点要注意的是，如果将大数转换为小的数，那么并不保证截断，如将浮点型的`257.1`转换成`i8`（上限为`128`），那么就会产生未定义行为。所以，在浮点型和整型相互转换的时候，需要在高级语言层面做一些调整，如使用饱和转换等，具体方案可以看Rust最近1.45.0的更新[Announcing Rust 1.45.0](https://blog.rust-lang.org/2020/07/16/Rust-1.45.0.html)和GitHub上的PR：[Out of range float to int conversions using `as` has been defined as a saturating conversion.](https://github.com/rust-lang/rust/pull/71269/)。
 
-# 指针类型
+## 指针类型
 
 将基本的数据类型后加上一个`*`就变成了指针类型`i8*`, `i16*`, `float*`等。我们之前提到，LLVM IR中的全局变量和栈上分配的变量都是指针，所以其类型都是指针类型。
 
@@ -101,7 +103,7 @@ int also_y = *(int *)address_of_y;
 %also_y = inttoptr i64 %address_of_y to i32* ; %also_y is of type i32*, which is the address of variable y
 ```
 
-# 聚合类型
+## 聚合类型
 
 比起指针类型而言，更重要的是聚合类型。我们在C语言中常见的聚合类型有数组和结构体，LLVM IR也为我们提供了相应的支持。
 
@@ -155,7 +157,7 @@ struct MyStruct {
 
 值得注意的是，无论是数组还是结构体，其作为全局变量或栈上变量，依然是指针，也就是说，`@global_array`的类型是`[4 x i32]*`, `@global_structure`的类型是`%MyStruct*`也就是`{ i32, i8 }*`。接下来的问题就是，我们如何对聚合类型进行操作呢？
 
-## `getelementptr`
+### `getelementptr`
 
 首先，我们要讲的是对聚合类型的指针进行操作。一个最全面的例子，用C语言来说，就是
 
@@ -294,11 +296,11 @@ define i32 @main() {
 
 `extractvalue`和`insertvalue`并不只适用于结构体，也同样适用于存储在虚拟寄存器中的数组，这里不再赘述。
 
-# 标签类型
+## 标签类型
 
 在汇编语言中，一切的控制语句、函数调用都是由标签来控制的，在LLVM IR中，控制语句也是需要标签来完成。其具体的内容我会在之后专门有一篇控制语句的文章来解释。
 
-# 元数据类型
+## 元数据类型
 
 在我们使用Clang将C语言程序输出成LLVM IR时，会发现代码的最后几行有
 
@@ -324,7 +326,7 @@ clang -S -emit-llvm -g test.c
 
 LLVM IR的语法指南中有专门的一大章[Metadata](http://llvm.org/docs/LangRef.html#metadata)来解释各种元数据，这里与我们核心内容联系不太密切，我就不再赘述了。
 
-# 属性
+## 属性
 
 最后，还有一种叫做属性的概念。属性并不是类型，其一般用于函数。比如说，告诉编译器这个函数不会抛出错误，不需要某些优化等等。我们可以看到
 
@@ -351,9 +353,3 @@ define void @foo #0 {
 ```
 
 直接使用`#0`即可。
-
-# 在哪可以看到我的文章
-
-我的LLVM IR入门指南系列可以在[我的个人博客](https://evian-zhang.top/writings/series/LLVM%20IR入门指南)、GitHub：[Evian-Zhang/llvm-ir-tutorial](https://github.com/Evian-Zhang/llvm-ir-tutorial)、[知乎](https://zhuanlan.zhihu.com/c_1267851596689457152)、[CSDN](https://blog.csdn.net/evianzhang/category_10210126.html)中查看，本教程中涉及的大部分代码也都在同一GitHub仓库中。
-
-本人水平有限，写此文章仅希望与大家分享学习经验，文章中必有缺漏、错误之处，望方家不吝斧正，与大家共同学习，共同进步，谢谢大家！

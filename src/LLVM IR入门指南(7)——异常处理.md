@@ -1,6 +1,8 @@
+# 异常处理
+
 在这篇文章中，我主要介绍的是LLVM IR中的异常处理的方法。主要的参考文献是[Exception Handling in LLVM](http://llvm.org/docs/ExceptionHandling.html)。
 
-# 异常处理的要求
+## 异常处理的要求
 
 异常处理在许多高级语言中都是很常见的，在诸多语言的异常处理的方法中，`try` .. `catch`块的方法是最多的。对于用返回值来做异常处理的语言（如C、Rust、Go等）来说，可以直接在高级语言层面完成所有的事情，但是，如果使用`try` .. `catch`，就必须在语言的底层也做一些处理，而LLVM的异常处理则就是针对这种情况来做的。
 
@@ -54,7 +56,7 @@ int main() {
 * 能够保证抛出的异常结构体不会因为stack unwinding而释放
 * 能够在运行时进行类型匹配
 
-# LLVM IR的异常处理
+## LLVM IR的异常处理
 
 下面，我们就看看在LLVM IR层面，是怎么进行异常处理的。
 
@@ -70,7 +72,7 @@ clang++ -S -emit-llvm try_catch_test.cpp
 
 关于上面的异常处理的需求，我们发现，可以分为两类：怎么抛，怎么接。
 
-## 怎么抛
+### 怎么抛
 
 所谓怎么抛，就是如何抛出异常，主要需要保证抛出的异常结构体不会因为stack unwinding而释放，并且能够正确处理栈。
 
@@ -102,7 +104,7 @@ void __cxa_throw(void* thrown_exception, struct std::type_info * tinfo, void (*d
 
 也就是说，用来处理栈并改变控制流的核心，就是`_Unwind_RaiseException`这个函数。这个函数也可以在我上面提供的Itanium的ABI指南中找到。
 
-## 怎么接
+### 怎么接
 
 所谓怎么接，就是当stack unwinding遇到`try`块之后，如何处理相应的异常。根据我们上面提出的要求，怎么接应该处理的是如何改变控制流并且在运行时进行类型匹配。
 
@@ -241,9 +243,3 @@ invoke void @_Z3foov() to label %5 unwind label %6
 1. 从异常结构体中获得抛出的异常对象本身（异常结构体可能还包含其他信息）
 2. 进行异常处理
 3. 结束异常处理，回收、释放相应的结构体
-
-# 在哪可以看到我的文章
-
-我的LLVM IR入门指南系列可以在[我的个人博客](https://evian-zhang.top/writings/series/LLVM%20IR入门指南)、GitHub：[Evian-Zhang/llvm-ir-tutorial](https://github.com/Evian-Zhang/llvm-ir-tutorial)、[知乎](https://zhuanlan.zhihu.com/c_1267851596689457152)、[CSDN](https://blog.csdn.net/evianzhang/category_10210126.html)中查看，本教程中涉及的大部分代码也都在同一GitHub仓库中。
-
-本人水平有限，写此文章仅希望与大家分享学习经验，文章中必有缺漏、错误之处，望方家不吝斧正，与大家共同学习，共同进步，谢谢大家！
