@@ -97,7 +97,7 @@ LLVM IR中，我们需要表示的数据也是以上三种。那么，这三种�
 
 这个语句定义了一个`i32`类型的全局常量`@global_constant`，并将其初始化为`0`。
 
-#### 符号表
+#### 符号与符号表
 
 关于在数据区的数据，有一个特别需要注意的，就是数据的名称与二进制文件中的符号表。在LLVM IR中，所有的全局变量的名称都需要用`@`开头。我们有一个这样的LLVM IR：
 
@@ -128,17 +128,29 @@ nm global_variable_test
 000000000000402c B global_variable
 ```
 
-我们注意到，出现了`global_variable`这个字段。这表明，直接定义的全局变量，其名称会出现在符号表之中。那么，怎么控制这个行为呢？首先，我们需要简单地了解一下符号表。
+我们注意到，出现了`global_variable`这个字段。这表明，直接定义的全局变量，其名称会出现在符号表之中。那么，怎么控制这个行为呢？首先，我们需要简单地了解一下符号与符号表。
 
-简单来说，ELF文件中的符号表会有两个区域：`.symtab`和`.dynsym`。在最初只有静态链接的时期，符号表的作用主要有两个：Debug和静态链接。我们在Debug的时候，往往会需要某些数据的符号，而这就是放在`.symtab`里的；同样地，当我们用链接器将两个目标文件链接的时候，也需要解决其中的符号交叉引用，这时的信息也是放在`.symtab`里。然而，这些信息有一个特点：不需要在运行时载入内存。我们在运行时根本不关心某些数据的符号，也不需要链接，所以`.symtab`在运行时不会载入内存。然而，在出现了动态链接之后，就产生了变化。动态链接允许可执行文件在载入内存、运行这两个阶段再链接动态链接库，那么这时就需要解决符号的交叉引用。因此，有些符号就需要在运行时载入内存。将整个`.symtab`全部载入内存是不现实的，所以大家就把一部分需要载入内存的符号拷贝到`.dynsym`这个分区，也就是动态符号表中。
+在传统的C语言编译模型中，编译器将每个`.c`文件（也称为「编译单元」）编译为一个`.o`目标文件，然后链接器将这些`.o`文件链接为一个可执行文件。这么做的好处是，如果一个项目特别大，编译器就不需要将所有`.c`文件都读入内存中一起处理，而是可以并行地、高效地单独处理每个`.c`文件（这也是著名前端框架React不选择使用TypeScript的原因之一，参见[为什么 React 源码不用 TypeScript 来写？ - Cat Chen的回答 - 知乎](https://www.zhihu.com/question/378470381/answer/1079675543)）。对于动态链接的程序而言，在程序加载、运行时，也会由动态链接器将相应的库动态链接进程序之中。
 
-在LLVM IR中，控制符号表与两个概念密切相关：链接与可见性，LLVM IR也提供了[Linkage Type](https://llvm.org/docs/LangRef.html#linkage-types)和[Visibility Styles](https://llvm.org/docs/LangRef.html#visibility-styles)这两个修饰符来控制相应的行为。
+也就是说，编译器生成的结果，需要给链接器和动态链接器进行处理。在这一过程中，就需要「符号表」出马了。在上述的过程中，编译器的输入是一个编译单元，而输出是一个目标文件。那么如果我们在源代码中，在一个`.c`文件中调用了别的文件中实现的函数，编译器并不知道别的函数在哪。因此，编译器选择的策略是将这个函数的调用用一个符号代替，在将来链接以及动态链接的时候，再进行替换。
+
+粗略来讲，整体的符号处理的过程为：
+
+1. 编译器对源代码按文件进行编译。对于每个文件中的未知函数，记录其符号；对于这个文件中实现的函数，暴露其符号
+2. 链接器收集所有的目标文件，对于每个文件而言，将其记录下的未知函数的符号，与其他文件中暴露出的符号相对比，如果找到匹配的，就成功地解析（resolve）了符号
+3. 部分符号在程序加载、执行时，由动态链接库给出。动态链接器将在这些阶段，进行类似的符号解析
+
+这一流程粗粒度地来看，非常的简单。但是仔细来看，就需要更多的处理。
+
+一个符号本身，就是一个字符串。那么我们在写一个C语言的项目时，如果希望有的函数在别的文件中被调用，按照上述过程，似乎就是暴露一下符号就行。但是，一个C语言的项目，往往会链接很多第三方库。如果我们想暴露的函数名与其他第三方库里的函数名重复了，会怎样呢？如果不加处理，链接器会直接报错。那难道我们起一个名字，需要注意与别的所有的库里的函数都不重复吗？此外，一个程序会有成千上万个符号，一些简单的，只在一个文件里用到的符号，比如说`cmp`、`max`，难道也要放在符号表中吗？
+
+在LLVM IR中，解决这些问题，与两个概念密切相关：链接与可见性，LLVM IR也提供了[Linkage Type](https://llvm.org/docs/LangRef.html#linkage-types)和[Visibility Styles](https://llvm.org/docs/LangRef.html#visibility-styles)这两个修饰符来控制相应的行为。
 
 #### 链接类型
 
 对于链接类型，我们常用的主要有什么都不加（默认为`external`）、`private`和`internal`。
 
-什么都不加的话，就像我们刚刚那样，直接把全局变量的名字放在了符号表中，用`nm`查看出来，在`_global_variable`之前是`S`，表示除了几个主流分区之外的其它分区，如果我们用`llc`将代码输出成汇编的话，可以看到`global_varaible`在macOS下是在`__DATA`段的`__common`节。
+什么都不加的话，就像我们刚刚那样，直接把全局变量的名字放在了符号表中。这样的话，这个函数可以在链接时被其他编译单元看到。
 
 用`private`，则代表这个变量的名字不会出现在符号表中。我们将原来的代码改写成
 
@@ -146,15 +158,7 @@ nm global_variable_test
 @global_variable = private global i32 0
 ```
 
-那么，用`nm`查看其编译出的可执行文件：
-
-```
-0000000100000000 T __mh_execute_header
-0000000100000f70 T _main
-                 U dyld_stub_binder
-```
-
-这个变量的名字就消失了。
+那么，用`nm`查看其编译出的可执行文件，这个变量的名字就消失了。
 
 用`internal`则表示这个变量是以局部符号的身份出现（全局变量的局部符号，可以理解成C中的`static`关键词）。我们将原来的代码改写成
 
@@ -162,18 +166,7 @@ nm global_variable_test
 @global_variable = internal global i32 0
 ```
 
-那么，再次将其编译成可执行程序，并用`nm`查看：
-
-```
-0000000100000000 T __mh_execute_header
-0000000100001000 b _global_variable
-0000000100000f70 T _main
-                 U dyld_stub_binder
-```
-
-`_global_variable`前面的符号变成了小写的`b`，这代表这个变量是位于`__bss`节的局部符号。
-
-LLVM IR层次的链接类型也就控制了实际目标文件的链接策略，什么符号是导出的，什么符号是本地的，什么符号是消失的。但是，这个变量放在可执行程序中的哪个区、哪个节并不是统一的，是与平台相关的，如在macOS上什么都不加的`global_variable`是放在`__DATA`段的`__common`节，而`internal`的`global_variable`则是处于`__DATA`段的`__bss`节。而在Ubuntu上，什么都不加的`global_variable`则是位于`.bss`节，`internal`的`global_variable`也是处于`.bss`的局部符号。
+那么，再次将其编译成可执行程序，并用`nm`查看，可以看到这个符号。但是，在链接过程中，这个符号并不会参与符号解析。
 
 #### 可见性
 
@@ -181,12 +174,12 @@ LLVM IR层次的链接类型也就控制了实际目标文件的链接策略，�
 
 ### 寄存器内的数据和栈上的数据
 
-这两种数据我选择放在一起讲。我们知道，除了DMA等奇技淫巧之外，大多数对数据的操作，如加减乘除、比大小等，都需要操作的是寄存器内的数据。那么，我们为什么需要把数据放在栈上呢？主要有两个原因：
+这两种数据我选择放在一起讲。我们知道，大多数对数据的操作，如加减乘除、比大小等，都需要操作的是寄存器内的数据。那么，我们为什么需要把数据放在栈上呢？主要有两个原因：
 
 * 寄存器数量不够
 * 需要操作内存地址
 
-如果我们一个函数内有三四十个局部变量，但是家用型CPU最多也就十几个通用寄存器，所以我们不可能把所有变量都放在寄存器中，因此我们需要把一部分数据放在内存中，栈就是一个很好的存储数据的地方；此外，有时候我们需要直接操作内存地址，但是寄存器并没有通用的地址表示，所以只能把数据放在栈上来完成对地址的操作。
+如果我们一个函数内有三四十个局部变量，但是家用型CPU最多也就十几个通用寄存器，所以我们不可能把所有变量都放在寄存器中。因此我们需要把一部分数据放在内存中，栈就是一个很好的存储数据的地方；此外，有时候我们需要直接操作内存地址，但是寄存器并没有通用的地址表示，所以只能把数据放在栈上来完成对地址的操作。
 
 因此，在不操作内存地址的前提下，栈只是寄存器的一个替代品。有一个很简单的例子可以解释这个概念。我们有一个很简单的C程序：
 
@@ -206,33 +199,32 @@ int main() {
 }
 ```
 
-在x86_64架构macOS上编译的话，我们首先来看`max(1, 2)`是如何调用的：
+我们将其编译成汇编文件。我们首先来看`max(1, 2)`是如何调用的：
 
-```assembly
+```x86asm
 movl	$1, %edi
 movl	$2, %esi
-callq	_max
+callq	max
 ```
 
 将参数`1`和`2`分别放到了寄存器`edi`和`esi`里。那么，`max`函数又是如何操作的呢？
 
-```assembly
+```x86asm
 	pushq	%rbp
 	movq	%rsp, %rbp
-	movl	%edi, -8(%rbp)		# move data stored in %edi to stack at -8(%rbp)
-	movl	%esi, -12(%rbp)		# move data stored in %esi to stack at -12(%rbp)
-	movl	-8(%rbp), %eax		# move data stored in stack at -8(%rbp) to register %eax
-	cmpl	-12(%rbp), %eax		# compare data stored in stack at -12(%rbp) with data stored in %eax
-	jle	LBB0_2					# if compare result is less than or equal to, then go to label LBB0_2
-## %bb.1:
-	movl	-8(%rbp), %eax		# move data stored in stack at -8(%rbp) to register %eax
-	movl	%eax, -4(%rbp)		# move data stored in %eax to stack at -4(%rbp)
-	jmp	LBB0_3					# go to label LBB0_3
-LBB0_2:
-	movl	-12(%rbp), %eax		# move data stored in stack at -12(%rbp) to register %eax
-	movl	%eax, -4(%rbp)		# move data stored in %eax to stack at -4(%rbp)
-LBB0_3:
-	movl	-4(%rbp), %eax		# move data stored in stack at -4(%rbp) to register %eax
+	movl	%edi, -8(%rbp)		# Move data stored in %edi to stack at -8(%rbp)
+	movl	%esi, -12(%rbp)		# Move data stored in %esi to stack at -12(%rbp)
+	movl	-8(%rbp), %eax		# Move data stored in stack at -8(%rbp) to register %eax
+	cmpl	-12(%rbp), %eax		# Compare data stored in stack at -12(%rbp) with data stored in %eax
+	jle	.LBB0_2					# If compare result is less than or equal to, then go to label LBB0_2
+	movl	-8(%rbp), %eax		# Move data stored in stack at -8(%rbp) to register %eax
+	movl	%eax, -4(%rbp)		# Move data stored in %eax to stack at -4(%rbp)
+	jmp	.LBB0_3					# Go to label LBB0_3
+.LBB0_2:
+	movl	-12(%rbp), %eax		# Move data stored in stack at -12(%rbp) to register %eax
+	movl	%eax, -4(%rbp)		# Move data stored in %eax to stack at -4(%rbp)
+.LBB0_3:
+	movl	-4(%rbp), %eax		# Move data stored in stack at -4(%rbp) to register %eax
 	popq	%rbp
 	retq
 ```
@@ -253,15 +245,12 @@ LBB0_3:
 clang -O1 -S max.c
 ```
 
-之后，我们的`_max`函数的汇编代码是：
+之后，我们的`max`函数的汇编代码是：
 
-```assembly
-pushq	%rbp
-movq	%rsp, %rbp
+```x86asm
 movl	%esi, %eax
 cmpl	%esi, %edi
-cmovgel	%edi, %eax
-popq	%rbp
+cmovgl	%edi, %eax
 retq
 ```
 
@@ -293,19 +282,16 @@ function max(register a, register b) {
 
 ```llvm
 ; register_test.ll
-target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-apple-macosx10.15.0"
-
 define i32 @main() {
 	%local_variable = add i32 1, 2
 	ret i32 %local_variable
 }
 ```
 
-我们在x86_64的macOS系统上查看其编译出的汇编代码，其主函数为：
+我们查看其编译出的汇编代码，其主函数为：
 
-```assembly
-_main:
+```x86asm
+main:
 	movl	$2, %eax
 	addl	$1, %eax
 	retq
@@ -325,7 +311,7 @@ _main:
 
 我们可以写一个简单的程序验证。对于x86_64架构下，我们只需要使用15个虚拟寄存器就可以验证这件事。鉴于篇幅，我就不把代码放在文章中了，如果想看详细代码可以去我的GitHub仓库中查看`many_registers_test.ll`。我们将其编译成汇编语言之后，可以看到在函数开头就有
 
-```assembly
+```x86asm
 pushq	%r15
 pushq	%r14
 pushq	%r13
@@ -335,9 +321,10 @@ pushq	%rbx
 
 也就是把那些需要保留的寄存器压栈。然后随着寄存器用光，第15个虚拟寄存器就会使用栈：
 
-```assembly
-movl	%ecx, -4(%rsp)
-addl	$1, %ecx
+```x86asm
+movl	$2, %eax
+addl	$1, %eax
+movl	%eax, -4(%rsp)
 ```
 
 #### 栈
@@ -369,7 +356,7 @@ LLVM IR对栈的使用十分简单，直接使用`alloca`指令即可。如：
 这两个变量实际上都是`i32*`类型的指针，指向它们所处的内存区域。所以，我们不能这样：
 
 ```llvm
-%1 = add i32 1, @global_variable ; wrong!
+%1 = add i32 1, @global_variable ; Wrong!
 ```
 
 因为`@global_variable`只是一个指针。
