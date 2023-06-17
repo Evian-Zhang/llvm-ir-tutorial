@@ -1,4 +1,4 @@
 ; main.ll
 define i32 @main() {
-	ret i32 0
+    ret i32 0
 }

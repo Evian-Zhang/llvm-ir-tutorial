@@ -11,7 +11,7 @@
 ```llvm
 ; main.ll
 define i32 @main() {
-	ret i32 0
+    ret i32 0
 }
 ```
 
@@ -19,7 +19,7 @@ define i32 @main() {
 
 ```c
 int main() {
-	return 0;
+    return 0;
 }
 ```
 
@@ -48,7 +48,7 @@ clang main.ll -o main
 
 ```llvm
 define i32 @main() {
-	ret i32 0
+    ret i32 0
 }
 ```
 

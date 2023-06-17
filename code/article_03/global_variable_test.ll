@@ -2,5 +2,5 @@
 @global_variable = global i32 0
 
 define i32 @main() {
-	ret i32 0
+    ret i32 0
 }
