@@ -148,7 +148,7 @@ attributes #0 = { noinline nounwind optnone uwtable "frame-pointer"="all" "min-l
 !2 = !{i32 7, !"PIE Level", i32 2}
 !3 = !{i32 7, !"uwtable", i32 2}
 !4 = !{i32 7, !"frame-pointer", i32 2}
-!5 = !{!"Homebrew clang version 16.0.4"}
+!5 = !{!"Homebrew clang version 16.0.6"}
 ```
 
 这看上去更加让人迷惑。然而，我们同样地只需要关注五行内容：
@@ -201,7 +201,7 @@ attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memor
 !1 = !{i32 8, !"PIC Level", i32 2}
 !2 = !{i32 7, !"PIE Level", i32 2}
 !3 = !{i32 7, !"uwtable", i32 2}
-!4 = !{!"Homebrew clang version 16.0.4"}
+!4 = !{!"Homebrew clang version 16.0.6"}
 ```
 
 我们观察`@main`函数，可以发现其函数体从最开始的三行，变成了最终的一行。
@@ -249,7 +249,7 @@ main:                                   # @main
 	.size	main, .Lfunc_end0-main
 	.cfi_endproc
                                         # -- End function
-	.ident	"Homebrew clang version 16.0.4"
+	.ident	"Homebrew clang version 16.0.6"
 	.section	".note.GNU-stack","",@progbits
 ```
 
