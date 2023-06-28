@@ -2,11 +2,11 @@
 
 本仓库是我写的LLVM IR入门指南。
 
-推荐前往<https://Evian-Zhang.github.io/llvm-ir-tutorial>阅读以获得最佳排版及语法高亮体验。PDF版本下载请点击前述网页的右上角。本教程中涉及的大部分代码也都在本GitHub仓库中。
+推荐前往<https://Evian-Zhang.github.io/llvm-ir-tutorial>阅读以获得最佳排版及语法高亮体验。PDF版本下载请点击前述网页的右上角。本教程中涉及的大部分代码也都在本GitHub仓库[Evian-Zhang/llvm-ir-tutorial](https://github.com/Evian-Zhang/llvm-ir-tutorial)中。
 
 LLVM是当下最通用的编译器后端之一，无论是想自己动手制作一个编译器，还是为主流的编程语言增加功能，又或者是做软件的静态分析，都离不开LLVM。LLVM IR是LLVM架构中一个重要的组成成分，编译器前端将抽象语法树转变为LLVM IR，而编译器后端则根据LLVM IR进行优化，生成可执行程序。但是，目前对LLVM IR的中文介绍少之又少。因此，我就写了这样的一系列文章，介绍了LLVM的架构，并且从LLVM IR的层面，让大家系统地了解LLVM。
 
-最近（2023年6月），这个GitHub仓库的star数即将达到一千。因此，我打算基于现有的脉络，大范围更新现有的文章，推出LLVM IR入门指南2.0版。我这次更新的原因主要有以下几点：
+最近（2023年6月），这个GitHub仓库的star数即将达到一千。因此，我打算基于现有的脉络，大范围更新现有的文章，推出LLVM IR入门指南2.0版（如需查看1.0版，请移步[v1分支](https://github.com/Evian-Zhang/llvm-ir-tutorial/tree/v1)）。我这次更新的原因主要有以下几点：
 
 * LLVM版本更新
 
@@ -53,6 +53,54 @@ LLVM是当下最通用的编译器后端之一，无论是想自己动手制作�
 * 编译器
 
    C语言采用Clang 16编译器。LLVM采用LLVM 16版本。
+
+## 本地生成可阅读版本
+
+本系列文章可以在GitHub Pages <https://Evian-Zhang.github.io/llvm-ir-tutorial>上阅读并生成PDF。如果想在本地离线阅读，可以按照如下步骤生成可阅读版本。
+
+### 1. 克隆本仓库
+
+```shell
+git clone https://github.com/Evian-Zhang/llvm-ir-tutorial && cd llvm-ir-tutorial
+```
+
+### 2. 准备语法高亮文件
+
+由于MDBook自带的highlightjs并不支持本书的所有语法高亮，所以需要按照其官方文档中[Custom theme](https://rust-lang.github.io/mdBook/format/theme/syntax-highlighting.html#custom-theme)的步骤准备自定义的语法高亮文件：
+
+```shell
+git clone https://github.com/highlightjs/highlight.js && cd highlight.js
+npm install
+node tools/build.js \
+   bash \
+   c \
+   llvm \
+   x86asm \
+   plaintext \
+   shell \
+   rust
+cd ..
+mkdir -p theme
+cp highlight.js/build/highlight.min.js theme/highlight.js
+```
+
+### 3. 使用MDBook生成最终文档
+
+使用MDBook，其可通过`cargo install mdbook`进行安装。
+
+```shell
+mdbook build
+```
+
+生成的文档将位于`book/`目录下。
+
+同时，也可以使用
+
+```shell
+mdbook serve
+```
+
+在本地启动一个服务器，从而可以更方便地在浏览器中阅读。
 
 #### License
 

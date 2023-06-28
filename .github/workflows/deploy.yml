@@ -50,7 +50,8 @@ jobs:
             llvm \
             x86asm \
             plaintext \
-            shell
+            shell \
+            rust
         working-directory: highlight.js
       - name: Prepare theme
         run: |
