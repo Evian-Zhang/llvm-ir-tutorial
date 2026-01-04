@@ -1,7 +1,6 @@
 [book]
 authors = ["Evian-Zhang"]
 language = "zh-Hans"
-multilingual = false
 src = "src"
 title = "LLVM IR入门指南"
 
